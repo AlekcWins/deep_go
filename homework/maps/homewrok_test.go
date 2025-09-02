@@ -10,31 +10,104 @@ import (
 // go test -v homework_test.go
 
 type OrderedMap struct {
-	// need to implement
+	root *node
+	size int
+}
+
+type node struct {
+	key   int
+	value int
+	left  *node
+	right *node
 }
 
 func NewOrderedMap() OrderedMap {
-	return OrderedMap{} // need to implement
+	return OrderedMap{}
 }
 
 func (m *OrderedMap) Insert(key, value int) {
-	// need to implement
+	m.root = insertNode(m.root, key, value, &m.size)
+}
+
+func insertNode(n *node, key, value int, size *int) *node {
+	if n == nil {
+		*size++
+		return &node{key: key, value: value}
+	}
+
+	if key < n.key {
+		n.left = insertNode(n.left, key, value, size)
+	} else if key > n.key {
+		n.right = insertNode(n.right, key, value, size)
+	} else {
+		n.value = value
+	}
+	return n
 }
 
 func (m *OrderedMap) Erase(key int) {
-	// need to implement
+	m.root = eraseNode(m.root, key, &m.size)
+}
+
+func eraseNode(n *node, key int, size *int) *node {
+	if n == nil {
+		return nil
+	}
+
+	if key < n.key {
+		n.left = eraseNode(n.left, key, size)
+	} else if key > n.key {
+		n.right = eraseNode(n.right, key, size)
+	} else {
+		*size--
+		if n.left == nil {
+			return n.right
+		} else if n.right == nil {
+			return n.left
+		} else {
+			minRight := n.right
+			for minRight.left != nil {
+				minRight = minRight.left
+			}
+			n.key = minRight.key
+			n.value = minRight.value
+			n.right = eraseNode(n.right, minRight.key, size)
+		}
+	}
+	return n
 }
 
 func (m *OrderedMap) Contains(key int) bool {
-	return false // need to implement
+	return containsNode(m.root, key)
+}
+
+func containsNode(n *node, key int) bool {
+	if n == nil {
+		return false
+	}
+	if key < n.key {
+		return containsNode(n.left, key)
+	} else if key > n.key {
+		return containsNode(n.right, key)
+	}
+	return true
 }
 
 func (m *OrderedMap) Size() int {
-	return 0 // need to implement
+	return m.size
 }
 
 func (m *OrderedMap) ForEach(action func(int, int)) {
-	// need to implement
+	inOrder(m.root, action)
+}
+
+func inOrder(n *node, action func(int, int)) {
+	if n == nil {
+		return
+	}
+	inOrder(n.left, action)
+	action(n.key, n.value)
+	inOrder(n.right, action)
 }
 
 func TestCircularQueue(t *testing.T) {
@@ -80,4 +153,31 @@ func TestCircularQueue(t *testing.T) {
 	})
 
 	assert.True(t, reflect.DeepEqual(expectedKeys, keys))
+}
+
+func TestEraseNonExistentKeys(t *testing.T) {
+	m := NewOrderedMap()
+	m.Insert(10, 100)
+	m.Insert(20, 200)
+	m.Insert(30, 300)
+
+	initialSize := m.Size()
+
+	// Удаляем несколько раз несуществующие ключи
+	nonExistentKeys := []int{42, 99, -1}
+	for _, key := range nonExistentKeys {
+		m.Erase(key)
+	}
+	// проверяем что не произошло лишнее срабатывание size--
+	if m.Size() != initialSize {
+		t.Errorf("Size changed after deleting non-existent keys. Expected %d, got %d", initialSize, m.Size())
+	}
+
+	// Проверяем, что существующие элементы остались
+	existingKeys := []int{10, 20, 30}
+	for _, key := range existingKeys {
+		if !m.Contains(key) {
+			t.Errorf("Key %d should still exist in the map", key)
+		}
+	}
 }
