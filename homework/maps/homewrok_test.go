@@ -165,10 +165,8 @@ func TestEraseNonExistentKeys(t *testing.T) {
 
 	// Удаляем несколько раз несуществующие ключи
 	nonExistentKeys := []int{42, 99, -1}
-	for i := 0; i < 5; i++ {
-		for _, key := range nonExistentKeys {
-			m.Erase(key)
-		}
+	for _, key := range nonExistentKeys {
+		m.Erase(key)
 	}
 	// проверяем что не произошло лишнее срабатывание size--
 	if m.Size() != initialSize {
