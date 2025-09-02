@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -8,18 +9,34 @@ import (
 )
 
 func Map(data []int, action func(int) int) []int {
-	// need to implement
-	return nil
+	if data == nil || len(data) == 0 {
+		return data
+	}
+	result := make([]int, len(data))
+	for i, v := range data {
+		result[i] = action(v)
+	}
+	return result
 }
 
 func Filter(data []int, action func(int) bool) []int {
-	// need to implement
-	return nil
+	if data == nil || len(data) == 0 {
+		return data
+	}
+	result := make([]int, 0, len(data))
+	for _, v := range data {
+		if action(v) {
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 func Reduce(data []int, initial int, action func(int, int) int) int {
-	// need to implement
-	return 0
+	for _, v := range data {
+		initial = action(initial, v)
+	}
+	return initial
 }
 
 func TestMap(t *testing.T) {
@@ -145,6 +162,66 @@ func TestReduce(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := Reduce(test.data, test.initial, test.action)
 			assert.Equal(t, test.result, result)
+		})
+	}
+}
+
+func TestMapJSONSerialization(t *testing.T) {
+	tests := map[string]struct {
+		data     []int
+		action   func(int) int
+		expected string
+	}{
+		"nil slice": {
+			data:   nil,
+			action: func(n int) int { return n * 2 },
+			// nil slice JSON сериализуется как null
+			expected: "null",
+		},
+		"empty slice": {
+			data:   []int{},
+			action: func(n int) int { return n * 2 },
+			// пустой срез JSON сериализуется как []
+			expected: "[]",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			mapped := Map(test.data, test.action)
+			b, err := json.Marshal(mapped)
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, string(b))
+		})
+	}
+}
+
+func TestFilterJSONSerialization(t *testing.T) {
+	tests := map[string]struct {
+		data     []int
+		action   func(int) bool
+		expected string
+	}{
+		"nil slice": {
+			data:   nil,
+			action: func(n int) bool { return n > 0 },
+			// nil slice JSON сериализуется как null
+			expected: "null",
+		},
+		"empty slice": {
+			data:   []int{},
+			action: func(n int) bool { return n > 0 },
+			// пустой срез JSON сериализуется как []
+			expected: "[]",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			filtered := Filter(test.data, test.action)
+			b, err := json.Marshal(filtered)
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, string(b))
 		})
 	}
 }
