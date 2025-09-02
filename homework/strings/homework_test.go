@@ -1,7 +1,8 @@
-package main
+package strings
 
 import (
 	"reflect"
+	"runtime"
 	"testing"
 	"unsafe"
 
@@ -11,27 +12,53 @@ import (
 type COWBuffer struct {
 	data []byte
 	refs *int
-	// need to implement
 }
 
 func NewCOWBuffer(data []byte) COWBuffer {
-	return COWBuffer{} // need to implement
+	refs := 1
+	buf := COWBuffer{data: data, refs: &refs}
+	runtime.SetFinalizer(&buf, func(b *COWBuffer) {
+		b.Close()
+	})
+	return buf
 }
 
 func (b *COWBuffer) Clone() COWBuffer {
-	return COWBuffer{} // need to implement
+	if b.refs != nil {
+		*b.refs++
+	}
+	return COWBuffer{data: b.data, refs: b.refs}
 }
 
 func (b *COWBuffer) Close() {
-	// need to implement
+	if b.refs == nil {
+		return
+	}
+	*b.refs--
+	if *b.refs == 0 {
+		b.data = nil
+		b.refs = nil
+	}
 }
 
 func (b *COWBuffer) Update(index int, value byte) bool {
-	return false // need to implement
+	if b.refs == nil || index < 0 || index >= len(b.data) {
+		return false
+	}
+	if *b.refs > 1 {
+		*b.refs--
+		newRefs := 1
+		newData := make([]byte, len(b.data))
+		copy(newData, b.data)
+		b.data = newData
+		b.refs = &newRefs
+	}
+	b.data[index] = value
+	return true
 }
 
 func (b *COWBuffer) String() string {
-	return "" // need to implement
+	return unsafe.String(unsafe.SliceData(b.data), len(b.data))
 }
 
 func TestCOWBuffer(t *testing.T) {
@@ -71,4 +98,35 @@ func TestCOWBuffer(t *testing.T) {
 	assert.Equal(t, unsafe.SliceData(previous), unsafe.SliceData(current))
 
 	copy2.Close()
+}
+
+func TestCOWBufferMultipleClose(t *testing.T) {
+	buf := NewCOWBuffer([]byte("hello"))
+
+	// Можно вызывать Close() несколько раз — не должно паниковать
+	buf.Close()
+	buf.Close()
+	buf.Close()
+
+	if buf.data != nil || buf.refs != nil {
+		t.Errorf("buffer should be fully closed after multiple Close calls")
+	}
+}
+
+func TestCOWBufferCloneAfterClose(t *testing.T) {
+	buf := NewCOWBuffer([]byte("hello"))
+
+	// Закрываем буфер
+	buf.Close()
+
+	// Пытаемся сделать клон закрытого буфера
+	clone := buf.Clone()
+
+	// Клон тоже должен быть "пустым" (data == nil, refs == nil)
+	if clone.data != nil || clone.refs != nil {
+		t.Errorf("clone of closed buffer should be nil, got data=%v refs=%v", clone.data, clone.refs)
+	}
+
+	// Закрывать клон тоже безопасно
+	clone.Close()
 }
