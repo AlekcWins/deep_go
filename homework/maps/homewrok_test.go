@@ -170,7 +170,7 @@ func TestEraseNonExistentKeys(t *testing.T) {
 			m.Erase(key)
 		}
 	}
-
+	// проверяем что не произошло лишнее срабатывание size--
 	if m.Size() != initialSize {
 		t.Errorf("Size changed after deleting non-existent keys. Expected %d, got %d", initialSize, m.Size())
 	}
