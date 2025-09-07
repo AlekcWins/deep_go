@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,22 +19,31 @@ type MessageService struct {
 	NotEmptyStruct bool
 }
 
+type Constructor func() interface{}
+
 type Container struct {
-	// need to implement
+	container map[string]Constructor
 }
 
 func NewContainer() *Container {
-	// need to implement
-	return &Container{}
+	return &Container{
+		container: make(map[string]Constructor),
+	}
 }
 
-func (c *Container) RegisterType(name string, constructor interface{}) {
-	// need to implement
+func (c *Container) RegisterType(name string, constructor Constructor) {
+	if _, ok := c.container[name]; ok {
+		panic(fmt.Sprintf("container with name %s already exists", name))
+	}
+	c.container[name] = constructor
 }
 
 func (c *Container) Resolve(name string) (interface{}, error) {
-	// need to implement
-	return nil, nil
+	res, ok := c.container[name]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("%s not found in conraitner", name))
+	}
+	return res(), nil
 }
 
 func TestDIContainer(t *testing.T) {
