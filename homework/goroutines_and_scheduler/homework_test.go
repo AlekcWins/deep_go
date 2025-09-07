@@ -1,6 +1,8 @@
 package main
 
 import (
+	"container/heap"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,26 +13,77 @@ type Task struct {
 	Priority   int
 }
 
+type QueueTask struct {
+	Task
+	heapPriority int
+	idx          int
+}
+
 type Scheduler struct {
-	// need to implement
+	tasks    *TaskHeap
+	registry map[int]*QueueTask
 }
 
 func NewScheduler() Scheduler {
-	// need to implement
-	return Scheduler{}
+	tasks := TaskHeap([]*QueueTask{})
+	heap.Init(&tasks)
+
+	return Scheduler{
+		tasks:    &tasks,
+		registry: make(map[int]*QueueTask),
+	}
 }
 
 func (s *Scheduler) AddTask(task Task) {
-	// need to implement
+	hTask := QueueTask{task, task.Priority, 0}
+	s.registry[task.Identifier] = &hTask
+	heap.Push(s.tasks, &hTask)
 }
 
 func (s *Scheduler) ChangeTaskPriority(taskID int, newPriority int) {
-	// need to implement
+	if t, exists := s.registry[taskID]; exists {
+		t.heapPriority = newPriority
+		heap.Fix(s.tasks, t.idx)
+	}
 }
 
-func (s *Scheduler) GetTask() Task {
-	// need to implement
-	return Task{}
+func (s *Scheduler) GetTask() (Task, error) {
+	if s.tasks.Len() == 0 {
+		return Task{}, errors.New("task queue is empty")
+	}
+	task := heap.Pop(s.tasks).(*QueueTask).Task
+	delete(s.registry, task.Identifier)
+	return task, nil
+}
+
+type TaskHeap []*QueueTask
+
+func (h *TaskHeap) Len() int {
+	return len(*h)
+}
+
+func (h *TaskHeap) Less(i, j int) bool {
+	return (*h)[i].heapPriority > (*h)[j].heapPriority
+}
+
+func (h *TaskHeap) Swap(i, j int) {
+	(*h)[i], (*h)[j] = (*h)[j], (*h)[i]
+	(*h)[i].idx = i
+	(*h)[j].idx = j
+}
+
+func (h *TaskHeap) Push(x interface{}) {
+	item := x.(*QueueTask)
+	item.idx = len(*h)
+	*h = append(*h, x.(*QueueTask))
+}
+
+func (h *TaskHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
 }
 
 func TestTrace(t *testing.T) {
@@ -47,17 +100,21 @@ func TestTrace(t *testing.T) {
 	scheduler.AddTask(task4)
 	scheduler.AddTask(task5)
 
-	task := scheduler.GetTask()
+	task, err := scheduler.GetTask()
+	assert.NoError(t, err)
 	assert.Equal(t, task5, task)
 
-	task = scheduler.GetTask()
+	task, err = scheduler.GetTask()
+	assert.NoError(t, err)
 	assert.Equal(t, task4, task)
 
 	scheduler.ChangeTaskPriority(1, 100)
 
-	task = scheduler.GetTask()
+	task, err = scheduler.GetTask()
+	assert.NoError(t, err)
 	assert.Equal(t, task1, task)
 
-	task = scheduler.GetTask()
+	task, err = scheduler.GetTask()
+	assert.NoError(t, err)
 	assert.Equal(t, task3, task)
 }
