@@ -29,11 +29,11 @@ type Person struct {
 }
 
 func Serialize[T any](data T) string {
-	sb := new(strings.Builder)
 	dataType := reflect.TypeOf(data)
 	dataValue := reflect.ValueOf(data)
 	fieldsCount := dataType.NumField()
 
+	parts := make([]string, 0, fieldsCount)
 	for i := 0; i < fieldsCount; i++ {
 		meta := parseMeta(dataType.Field(i))
 		if meta == nil {
@@ -41,18 +41,13 @@ func Serialize[T any](data T) string {
 		}
 
 		fieldValue := parseFieldValue(dataValue.Field(i))
-
-		if len(fieldValue) > 0 || !meta.omitEmpty {
-			sb.WriteString(meta.name)
-			sb.WriteString("=")
-			sb.WriteString(fieldValue)
-			if i < fieldsCount-1 {
-				sb.WriteString("\n")
-			}
+		if meta.omitEmpty && dataValue.Field(i).IsZero() {
+			continue
 		}
+		parts = append(parts, fmt.Sprintf("%v=%v", meta.name, fieldValue))
 	}
 
-	return sb.String()
+	return strings.Join(parts, "\n")
 }
 
 func parseFieldValue(fieldValue reflect.Value) string {
