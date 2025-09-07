@@ -1,12 +1,25 @@
 package main
 
 import (
+	"fmt"
+	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 // go test -v homework_test.go
+
+const (
+	PropertyNameTag = "properties"
+)
+
+type FieldInfo struct {
+	name      string
+	omitEmpty bool
+}
 
 type Person struct {
 	Name    string `properties:"name"`
@@ -15,9 +28,64 @@ type Person struct {
 	Married bool   `properties:"married"`
 }
 
-func Serialize(person Person) string {
-	// need to implement
-	return ""
+func Serialize[T any](data T) string {
+	dataType := reflect.TypeOf(data)
+	dataValue := reflect.ValueOf(data)
+	fieldsCount := dataType.NumField()
+
+	parts := make([]string, 0, fieldsCount)
+	for i := 0; i < fieldsCount; i++ {
+		meta := parseMeta(dataType.Field(i))
+		if meta == nil {
+			continue
+		}
+
+		fieldValue := parseFieldValue(dataValue.Field(i))
+		if meta.omitEmpty && dataValue.Field(i).IsZero() {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%v=%v", meta.name, fieldValue))
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func parseFieldValue(fieldValue reflect.Value) string {
+	switch fieldValue.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return fmt.Sprintf("%v", fieldValue.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return fmt.Sprintf("%v", fieldValue.Uint())
+	case reflect.Float64, reflect.Float32:
+		return fmt.Sprintf("%v", fieldValue.Float())
+	case reflect.Bool:
+		return fmt.Sprintf("%v", fieldValue.Bool())
+	default:
+		return fieldValue.String()
+	}
+}
+
+func parseMeta(field reflect.StructField) *FieldInfo {
+	props, propExists := field.Tag.Lookup(PropertyNameTag)
+
+	if !propExists || len(props) == 0 {
+		return nil
+	}
+
+	parts := strings.Split(props, ",")
+	omitEmpty := slices.Contains(parts, "omitempty")
+	if omitEmpty {
+		parts = slices.DeleteFunc(parts, func(s string) bool {
+			return s == "omitempty"
+		})
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return &FieldInfo{
+		name:      parts[0],
+		omitEmpty: omitEmpty,
+	}
 }
 
 func TestSerialization(t *testing.T) {
